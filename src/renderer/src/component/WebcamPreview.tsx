@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // WebcamPreview.tsx
 import React, {
   forwardRef,
@@ -8,6 +9,11 @@ import React, {
   useCallback,
 } from 'react';
 import { CameraOff, Loader2 } from 'lucide-react';   // <-- Loader2 ditambah
+=======
+// src/component/WebcamPreview.tsx
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState } from 'react';
+import { CameraOff, Loader2 } from 'lucide-react';
+>>>>>>> 97f2c41 (update)
 
 export interface WebcamPreviewRef {
   video: HTMLVideoElement | null;
@@ -26,8 +32,10 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
     const isMountedRef = useRef(true);
     const isActiveRef = useRef(isActive);
     const [error, setError] = useState('');
-    const [cameraReady, setCameraReady] = useState(false); // <-- baru
+    const [cameraReady, setCameraReady] = useState(false);
+    const startingRef = useRef(false);
 
+<<<<<<< HEAD
     const stopCamera = useCallback(() => {
       const currentStream = streamRef.current ?? (videoRef.current?.srcObject as MediaStream | null);
       if (currentStream) {
@@ -45,6 +53,24 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
 
     const startCamera = useCallback(async () => {
       setCameraReady(false);        // <-- reset
+=======
+    useImperativeHandle(ref, () => ({
+      video: videoRef.current,
+      stop: stopCamera,
+    }));
+
+    useEffect(() => {
+      if (isActive) startCamera();
+      else stopCamera();
+      return () => stopCamera();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isActive]);
+
+    const startCamera = async () => {
+      if (startingRef.current || stream) return;
+      startingRef.current = true;
+      setCameraReady(false);
+>>>>>>> 97f2c41 (update)
       setError('');
       try {
         const ms = await navigator.mediaDevices.getUserMedia({
@@ -58,9 +84,14 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
 
         streamRef.current = ms;
         if (videoRef.current) {
+<<<<<<< HEAD
           const videoElement = videoRef.current;
           const handleLoadedMetadata = () => {
             if (!isMountedRef.current || !isActiveRef.current) return;
+=======
+          (videoRef.current as any).srcObject = ms;
+          videoRef.current.onloadedmetadata = () => {
+>>>>>>> 97f2c41 (update)
             setCameraReady(true);
             onStreamReady(ms);
           };
@@ -75,10 +106,14 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
       } catch (err) {
         if (!isMountedRef.current) return;
         setError('Camera access denied or not available');
+        // eslint-disable-next-line no-console
         console.error(err);
+      } finally {
+        startingRef.current = false;
       }
     }, [onStreamReady]);
 
+<<<<<<< HEAD
     useImperativeHandle(ref, () => ({
       video: videoRef.current,
       stop: () => stopCamera(),
@@ -99,12 +134,40 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
         stopCamera();
       };
     }, [stopCamera]);
+=======
+    const stopCamera = () => {
+      try {
+        const v = videoRef.current;
+        const s1 = stream;
+        const s2 = (v?.srcObject as MediaStream | null) ?? null;
+
+        const allTracks = new Set<MediaStreamTrack>([
+          ...(s1?.getTracks() ?? []),
+          ...(s2?.getTracks() ?? []),
+        ]);
+        allTracks.forEach((t) => {
+          try { t.stop(); } catch {}
+        });
+
+        if (v) {
+          v.pause();
+          (v as any).srcObject = null;
+          v.onloadedmetadata = null;
+          v.removeAttribute('src');
+          v.load?.();
+        }
+      } finally {
+        setStream(null);
+        setCameraReady(false);
+        startingRef.current = false;
+      }
+    };
+>>>>>>> 97f2c41 (update)
 
     if (!isActive) return null;
 
     return (
       <div className="relative w-full h-full bg-gray-900 overflow-hidden">
-        {/* Overlay loading */}
         {!cameraReady && !error && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
             <Loader2 className="w-10 h-10 animate-spin mb-3" />
@@ -124,13 +187,7 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
             </button>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
         )}
       </div>
     );

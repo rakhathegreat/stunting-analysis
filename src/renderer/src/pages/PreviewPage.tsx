@@ -1,21 +1,26 @@
-// src/pages/PreviewPage.tsx
 import React, { useRef, useState } from 'react';
 import WebcamPreview, { WebcamPreviewRef } from '@renderer/component/WebcamPreview';
-import { Camera, Loader, Check } from 'lucide-react'; // tambah Check
+import { Camera, Loader, Check } from 'lucide-react';
 import supabase from '../services/supabase';
+
+type AppState = 'main' | 'preview' | 'results';
 
 type Props = {
   nik: string;
   onCaptureSuccess: (data: any) => void;
+  setAppState: (s: AppState) => void;
 };
 
-const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
+const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, setAppState }) => {
   const webcamRef = useRef<WebcamPreviewRef>(null);
   const [capturing, setCapturing] = useState(false);
   const [calibrating, setCalibrating] = useState(false);
   const [calibrateSuccess, setCalibrateSuccess] = useState(false);
+  const [activeCam, setActiveCam] = useState(true);
+  const cancelledRef = useRef(false);
 
   const handleCapture = async () => {
+    if (cancelledRef.current) return;
     const video = webcamRef.current?.video;
     if (!video || !video.videoWidth) return alert('Kamera belum aktif!');
     if (!nik) return alert('NIK belum dipilih');
@@ -56,7 +61,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
         const gender = user.gender;
 
         const res = await fetch(
-          `http://127.0.0.1:8000/captureweb?gender=${gender}&age=${age}`,
+          `http://127.0.0.1:8000/capture?gender=${gender}&age=${age}`,
           {
             method: 'POST',
             body: fd,
@@ -68,12 +73,10 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        console.log('Capture result:', data);
         onCaptureSuccess(data);
       } catch (err: any) {
-        console.error(err);
         alert(
-          err.name === 'AbortError'
+          err?.name === 'AbortError'
             ? 'Analisis gagal (timeout 5 detik)'
             : 'Analisis gagal',
         );
@@ -84,6 +87,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
   };
 
   const handleCalibrate = async () => {
+    if (cancelledRef.current) return;
     const video = webcamRef.current?.video;
     if (!video || !video.videoWidth) return alert('Kamera belum aktif!');
 
@@ -110,14 +114,11 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
           body: fd,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        console.log('Calibration result:', data);
+        await res.json();
 
-        // Tampilkan icon check
         setCalibrateSuccess(true);
-        setTimeout(() => setCalibrateSuccess(false), 2000); // 2 detik
-      } catch (err) {
-        console.error(err);
+        setTimeout(() => setCalibrateSuccess(false), 2000);
+      } catch {
         alert('Kalibrasi gagal ❌');
       } finally {
         setCalibrating(false);
@@ -125,9 +126,50 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
     }, 'image/jpeg');
   };
 
+  const handleCancel = async () => {
+    cancelledRef.current = true;
+    setCapturing(false);
+    setCalibrating(false);
+    setCalibrateSuccess(false);
+
+    // 1) Matikan kamera via imperative handle
+    webcamRef.current?.stop?.();
+
+    // 2) Fallback: stop semua track yang mungkin masih nempel di elemen
+    const videoEl = webcamRef.current?.video ?? null;
+    const vStream = (videoEl?.srcObject as MediaStream | null) ?? null;
+    vStream?.getTracks().forEach((t) => {
+      try { t.stop(); } catch {}
+    });
+
+    // 3) Bersihkan elemen video
+    if (videoEl) {
+      videoEl.pause();
+      (videoEl as any).srcObject = null;
+      videoEl.onloadedmetadata = null;
+      videoEl.removeAttribute('src');
+      videoEl.load?.();
+    }
+
+    // 4) Nonaktifkan kamera di UI
+    setActiveCam(false);
+
+    // 5) Tunggu satu frame agar browser melepas device
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+
+    // 6) Kembali ke halaman utama
+    setAppState('main');
+  };
+
   return (
     <div className="relative flex flex-col items-center justify-center w-screen h-screen bg-gray-200">
-      <WebcamPreview ref={webcamRef} isActive onStreamReady={(s) => console.log('Stream ready', s)} />
+      {activeCam && (
+        <WebcamPreview
+          ref={webcamRef}
+          isActive={activeCam}
+          onStreamReady={(s) => console.log('Stream ready', s)}
+        />
+      )}
 
       <div className="absolute top-4 left-4">
         <div className="flex items-center gap-2 px-4 py-1 bg-white/80 rounded-lg shadow-md font-bold text-sm">
@@ -136,8 +178,16 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
         </div>
       </div>
 
+      <div className="absolute top-4 right-4">
+        <button
+          className="flex items-center gap-2 px-4 py-1 bg-white/80 rounded-lg shadow-md font-bold text-sm"
+          onClick={handleCancel}
+        >
+          Cancel
+        </button>
+      </div>
+
       <div className="absolute bottom-8 flex gap-4">
-        {/* Tombol Kalibrasi */}
         <button
           onClick={handleCalibrate}
           disabled={calibrating}
@@ -161,7 +211,6 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
           )}
         </button>
 
-        {/* Tombol Ambil Gambar */}
         <button
           onClick={handleCapture}
           disabled={capturing}
