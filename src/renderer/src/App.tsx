@@ -21,11 +21,20 @@ function App() {
     setAppState('preview');
   };
 
+  const handleCancelPreview = () => {
+    setAppState('main');
+  };
+
   return (
     <div className="flex flex-col items-center justify-center w-screen h-screen bg-gray-100">
       {appState === 'main' && <MainPage setAppState={setAppState} setNik={setNik} />}
       {appState === 'preview' && (
-        <PreviewPage nik={nik} onCaptureSuccess={gotoResults} />
+        <PreviewPage
+          nik={nik}
+          onCaptureSuccess={gotoResults}
+          onCancel={handleCancelPreview}
+          isActive={appState === 'preview'}
+        />
       )}
       {appState === 'results' && <ResultPage data={resultData} nik={nik} onRetake={handleRetake}/>}
     </div>

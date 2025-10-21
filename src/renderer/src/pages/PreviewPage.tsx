@@ -1,5 +1,5 @@
 // src/pages/PreviewPage.tsx
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import WebcamPreview, { WebcamPreviewRef } from '@renderer/component/WebcamPreview';
 import { Camera, Loader, Check } from 'lucide-react'; // tambah Check
 import supabase from '../services/supabase';
@@ -7,13 +7,27 @@ import supabase from '../services/supabase';
 type Props = {
   nik: string;
   onCaptureSuccess: (data: any) => void;
+  onCancel: () => void;
+  isActive: boolean;
 };
 
-const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
+const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActive }) => {
   const webcamRef = useRef<WebcamPreviewRef>(null);
   const [capturing, setCapturing] = useState(false);
   const [calibrating, setCalibrating] = useState(false);
   const [calibrateSuccess, setCalibrateSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!isActive) {
+      webcamRef.current?.stop();
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    return () => {
+      webcamRef.current?.stop();
+    };
+  }, []);
 
   const handleCapture = async () => {
     const video = webcamRef.current?.video;
@@ -83,6 +97,11 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
     }, 'image/jpeg');
   };
 
+  const handleCancel = () => {
+    webcamRef.current?.stop();
+    onCancel();
+  };
+
   const handleCalibrate = async () => {
     const video = webcamRef.current?.video;
     if (!video || !video.videoWidth) return alert('Kamera belum aktif!');
@@ -125,9 +144,17 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
     }, 'image/jpeg');
   };
 
+  if (!isActive) {
+    return null;
+  }
+
   return (
     <div className="relative flex flex-col items-center justify-center w-screen h-screen bg-gray-200">
-      <WebcamPreview ref={webcamRef} isActive onStreamReady={(s) => console.log('Stream ready', s)} />
+      <WebcamPreview
+        ref={webcamRef}
+        isActive={isActive}
+        onStreamReady={(s) => console.log('Stream ready', s)}
+      />
 
       <div className="absolute top-4 left-4">
         <div className="flex items-center gap-2 px-4 py-1 bg-white/80 rounded-lg shadow-md font-bold text-sm">
@@ -137,6 +164,13 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess }) => {
       </div>
 
       <div className="absolute bottom-8 flex gap-4">
+        <button
+          onClick={handleCancel}
+          className="flex items-center gap-2 px-6 py-4 text-sm bg-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-400 shadow transition"
+        >
+          Batal
+        </button>
+
         {/* Tombol Kalibrasi */}
         <button
           onClick={handleCalibrate}
