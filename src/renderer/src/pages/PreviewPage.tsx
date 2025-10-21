@@ -1,3 +1,4 @@
+// src/pages/PreviewPage.tsx
 import React, { useRef, useState } from 'react';
 import WebcamPreview, { WebcamPreviewRef } from '@renderer/component/WebcamPreview';
 import { Camera, Loader, Check } from 'lucide-react';
@@ -61,7 +62,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, setAppState }) =>
         const gender = user.gender;
 
         const res = await fetch(
-          `http://127.0.0.1:8000/capture?gender=${gender}&age=${age}`,
+          `http://127.0.0.1:8000/capture?gender=${encodeURIComponent(gender)}&age=${encodeURIComponent(age)}`,
           {
             method: 'POST',
             body: fd,
@@ -78,7 +79,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, setAppState }) =>
         alert(
           err?.name === 'AbortError'
             ? 'Analisis gagal (timeout 5 detik)'
-            : 'Analisis gagal',
+            : `Analisis gagal: ${err?.message ?? 'unknown'}`
         );
       } finally {
         setCapturing(false);
@@ -118,8 +119,8 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, setAppState }) =>
 
         setCalibrateSuccess(true);
         setTimeout(() => setCalibrateSuccess(false), 2000);
-      } catch {
-        alert('Kalibrasi gagal ❌');
+      } catch (e: any) {
+        alert(`Kalibrasi gagal ❌${e?.message ? ` (${e.message})` : ''}`);
       } finally {
         setCalibrating(false);
       }
@@ -132,17 +133,20 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, setAppState }) =>
     setCalibrating(false);
     setCalibrateSuccess(false);
 
-    // 1) Matikan kamera via imperative handle
+    // 1) Nonaktifkan kamera di UI dulu agar effect cleanup memanggil stopCamera()
+    setActiveCam(false);
+
+    // 2) Tunggu satu frame agar browser melepas device
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+
+    // 3) Jaring pengaman: panggil imperative stop + bersihkan elemen video
     webcamRef.current?.stop?.();
 
-    // 2) Fallback: stop semua track yang mungkin masih nempel di elemen
     const videoEl = webcamRef.current?.video ?? null;
     const vStream = (videoEl?.srcObject as MediaStream | null) ?? null;
     vStream?.getTracks().forEach((t) => {
       try { t.stop(); } catch {}
     });
-
-    // 3) Bersihkan elemen video
     if (videoEl) {
       videoEl.pause();
       (videoEl as any).srcObject = null;
@@ -151,13 +155,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, setAppState }) =>
       videoEl.load?.();
     }
 
-    // 4) Nonaktifkan kamera di UI
-    setActiveCam(false);
-
-    // 5) Tunggu satu frame agar browser melepas device
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-
-    // 6) Kembali ke halaman utama
+    // 4) Kembali ke halaman utama
     setAppState('main');
   };
 
