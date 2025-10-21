@@ -125,7 +125,7 @@ const MainPage: React.FC<Props> = ({ setAppState, setNik }) => {
 
   /* ---------- render ---------- */
   return (
-    <div className="flex flex-col items-center justify-center w-screen h-screen bg-gray-100 px-6">
+    <div className="relative flex flex-col items-center justify-center w-screen h-screen bg-gray-100 px-6">
       {/* HERO – disembunyikan saat input fokus */}
       <div
         className={`flex flex-col items-center text-center max-w-2xl space-y-1 transition-all duration-300 ease-in-out ${
@@ -209,6 +209,11 @@ const MainPage: React.FC<Props> = ({ setAppState, setNik }) => {
           </div>
         )}
       </div>
+
+      {/* ---------- COPYRIGHT ---------- */}
+      <footer className="absolute bottom-7 text-center text-xs text-gray-500">
+        © 2025 Comvistunt — Program Studi Informatika, Fakultas Teknik, Universitas Siliwangi.
+      </footer>
 
       {error && (
         <p className="text-sm text-red-600 font-medium bg-red-50 border border-red-200 rounded-md p-2 max-w-lg text-center mt-4">
