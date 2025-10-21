@@ -1,8 +1,10 @@
 // src/pages/PreviewPage.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import WebcamPreview, { WebcamPreviewRef } from '@renderer/component/WebcamPreview';
-import { Camera, Loader, Check } from 'lucide-react'; // tambah Check
+import { Camera, Loader, Check } from 'lucide-react';
 import supabase from '../services/supabase';
+
+type AppState = 'main' | 'preview' | 'results';
 
 type Props = {
   nik: string;
@@ -16,6 +18,8 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
   const [capturing, setCapturing] = useState(false);
   const [calibrating, setCalibrating] = useState(false);
   const [calibrateSuccess, setCalibrateSuccess] = useState(false);
+  const [activeCam, setActiveCam] = useState(true);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (!isActive) {
@@ -30,6 +34,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
   }, []);
 
   const handleCapture = async () => {
+    if (cancelledRef.current) return;
     const video = webcamRef.current?.video;
     if (!video || !video.videoWidth) return alert('Kamera belum aktif!');
     if (!nik) return alert('NIK belum dipilih');
@@ -70,7 +75,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
         const gender = user.gender;
 
         const res = await fetch(
-          `http://127.0.0.1:8000/captureweb?gender=${gender}&age=${age}`,
+          `http://127.0.0.1:8000/capture?gender=${gender}&age=${age}`,
           {
             method: 'POST',
             body: fd,
@@ -82,12 +87,10 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        console.log('Capture result:', data);
         onCaptureSuccess(data);
       } catch (err: any) {
-        console.error(err);
         alert(
-          err.name === 'AbortError'
+          err?.name === 'AbortError'
             ? 'Analisis gagal (timeout 5 detik)'
             : 'Analisis gagal',
         );
@@ -103,6 +106,7 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
   };
 
   const handleCalibrate = async () => {
+    if (cancelledRef.current) return;
     const video = webcamRef.current?.video;
     if (!video || !video.videoWidth) return alert('Kamera belum aktif!');
 
@@ -129,14 +133,11 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
           body: fd,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        console.log('Calibration result:', data);
+        await res.json();
 
-        // Tampilkan icon check
         setCalibrateSuccess(true);
-        setTimeout(() => setCalibrateSuccess(false), 2000); // 2 detik
-      } catch (err) {
-        console.error(err);
+        setTimeout(() => setCalibrateSuccess(false), 2000);
+      } catch {
         alert('Kalibrasi gagal ❌');
       } finally {
         setCalibrating(false);
@@ -161,6 +162,15 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
           <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
           Camera
         </div>
+      </div>
+
+      <div className="absolute top-4 right-4">
+        <button
+          className="flex items-center gap-2 px-4 py-1 bg-white/80 rounded-lg shadow-md font-bold text-sm"
+          onClick={handleCancel}
+        >
+          Cancel
+        </button>
       </div>
 
       <div className="absolute bottom-8 flex gap-4">
@@ -195,7 +205,6 @@ const PreviewPage: React.FC<Props> = ({ nik, onCaptureSuccess, onCancel, isActiv
           )}
         </button>
 
-        {/* Tombol Ambil Gambar */}
         <button
           onClick={handleCapture}
           disabled={capturing}

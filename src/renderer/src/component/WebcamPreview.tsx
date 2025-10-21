@@ -1,17 +1,10 @@
 // WebcamPreview.tsx
-import React, {
-  forwardRef,
-  useImperativeHandle,
-  useRef,
-  useEffect,
-  useState,
-  useCallback,
-} from 'react';
-import { CameraOff, Loader2 } from 'lucide-react';   // <-- Loader2 ditambah
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState } from 'react';
+import { CameraOff, Loader2 } from 'lucide-react';
 
 export interface WebcamPreviewRef {
   video: HTMLVideoElement | null;
-  stop: () => void;
+  stop: () => void;                 // <-- expose stop()
 }
 
 interface WebcamPreviewProps {
@@ -26,7 +19,8 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
     const isMountedRef = useRef(true);
     const isActiveRef = useRef(isActive);
     const [error, setError] = useState('');
-    const [cameraReady, setCameraReady] = useState(false); // <-- baru
+    const [cameraReady, setCameraReady] = useState(false);
+    const startingRef = useRef(false); 
 
     const stopCamera = useCallback(() => {
       const currentStream = streamRef.current ?? (videoRef.current?.srcObject as MediaStream | null);
@@ -108,7 +102,6 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
 
     return (
       <div className="relative w-full h-full bg-gray-900 overflow-hidden">
-        {/* Overlay loading */}
         {!cameraReady && !error && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
             <Loader2 className="w-10 h-10 animate-spin mb-3" />
@@ -128,13 +121,7 @@ const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
             </button>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
         )}
       </div>
     );
