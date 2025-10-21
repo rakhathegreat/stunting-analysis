@@ -1,9 +1,17 @@
 // WebcamPreview.tsx
-import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState } from 'react';
+import React, {
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
 import { CameraOff, Loader2 } from 'lucide-react';   // <-- Loader2 ditambah
 
 export interface WebcamPreviewRef {
   video: HTMLVideoElement | null;
+  stop: () => void;
 }
 
 interface WebcamPreviewProps {
@@ -14,45 +22,83 @@ interface WebcamPreviewProps {
 const WebcamPreview = forwardRef<WebcamPreviewRef, WebcamPreviewProps>(
   ({ isActive, onStreamReady }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const [stream, setStream] = useState<MediaStream | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const isMountedRef = useRef(true);
+    const isActiveRef = useRef(isActive);
     const [error, setError] = useState('');
     const [cameraReady, setCameraReady] = useState(false); // <-- baru
 
-    useImperativeHandle(ref, () => ({ video: videoRef.current }));
+    const stopCamera = useCallback(() => {
+      const currentStream = streamRef.current ?? (videoRef.current?.srcObject as MediaStream | null);
+      if (currentStream) {
+        currentStream.getTracks().forEach((t) => t.stop());
+      }
+      streamRef.current = null;
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        videoRef.current.onloadedmetadata = null;
+      }
+      if (isMountedRef.current) {
+        setCameraReady(false);
+      }
+    }, []);
 
-    useEffect(() => {
-      if (isActive) startCamera();
-      else stopCamera();
-      return () => stopCamera();
-    }, [isActive]);
-
-    const startCamera = async () => {
+    const startCamera = useCallback(async () => {
       setCameraReady(false);        // <-- reset
       setError('');
       try {
         const ms = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 },
         });
-        setStream(ms);
+
+        if (!isMountedRef.current || !isActiveRef.current) {
+          ms.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        streamRef.current = ms;
         if (videoRef.current) {
-          videoRef.current.srcObject = ms;
-          // tunggu frame pertama sebelum anggap siap
-          videoRef.current.onloadedmetadata = () => {
+          const videoElement = videoRef.current;
+          const handleLoadedMetadata = () => {
+            if (!isMountedRef.current || !isActiveRef.current) return;
             setCameraReady(true);
             onStreamReady(ms);
           };
+
+          videoElement.srcObject = ms;
+          videoElement.onloadedmetadata = handleLoadedMetadata;
+
+          if (videoElement.readyState >= 1) {
+            handleLoadedMetadata();
+          }
         }
       } catch (err) {
+        if (!isMountedRef.current) return;
         setError('Camera access denied or not available');
         console.error(err);
       }
-    };
+    }, [onStreamReady]);
 
-    const stopCamera = () => {
-      stream?.getTracks().forEach((t) => t.stop());
-      setStream(null);
-      setCameraReady(false);
-    };
+    useImperativeHandle(ref, () => ({
+      video: videoRef.current,
+      stop: () => stopCamera(),
+    }));
+
+    useEffect(() => {
+      isActiveRef.current = isActive;
+    }, [isActive]);
+
+    useEffect(() => {
+      if (isActive) startCamera();
+      else stopCamera();
+    }, [isActive, startCamera, stopCamera]);
+
+    useEffect(() => {
+      return () => {
+        isMountedRef.current = false;
+        stopCamera();
+      };
+    }, [stopCamera]);
 
     if (!isActive) return null;
 
